@@ -1,0 +1,42 @@
+name: Deploy to IIS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to IIS wwwroot
+        shell: powershell
+        run: |
+          $source = "$env:GITHUB_WORKSPACE"
+          $target = "C:\inetpub\wwwroot"
+
+          Write-Host "Deploying from $source to $target"
+
+          if (!(Test-Path $target)) {
+            New-Item -ItemType Directory -Path $target | Out-Null
+          }
+
+          robocopy `
+            $source `
+            $target `
+            /MIR `
+            /XD ".git" ".github" `
+            /XF ".gitignore" "README.md" `
+            /R:2 `
+            /W:5 `
+            /NFL `
+            /NDL `
+            /NP
+
+          if ($LASTEXITCODE -gt 7) {
+            exit 1
+          }
