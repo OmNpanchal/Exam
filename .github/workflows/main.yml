@@ -10,21 +10,41 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # Step 1 — Checkout the latest code from your main branch
+      # 1️⃣ Checkout source code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Step 2 — Deploy to wwwroot
-      - name: Deploy to wwwroot
+      # 2️⃣ Deploy to IIS using RoboCopy (recommended)
+      - name: Deploy to IIS wwwroot
+        shell: powershell
         run: |
+          $source = "$env:GITHUB_WORKSPACE"
           $target = "C:\inetpub\wwwroot"
 
-          # Remove all existing files (optional but recommended for clean deploy)
-          if (Test-Path $target) {
-            Get-ChildItem -Path $target -Recurse -Force | Remove-Item -Force -Recurse
-          } else {
+          Write-Host "Deploying from $source to $target"
+
+          # Ensure target exists
+          if (!(Test-Path $target)) {
             New-Item -ItemType Directory -Path $target | Out-Null
           }
 
-          # Copy all files from the repo to wwwroot
-          Copy-Item -Path "$env:GITHUB_WORKSPACE\*" -Destination $target -Recurse -Force
+          # RoboCopy mirrors content and excludes GitHub/system folders
+          robocopy `
+            $source `
+            $target `
+            /MIR `
+            /XD ".git" ".github" `
+            /XF ".gitignore" "README.md" `
+            /R:2 `
+            /W:5 `
+            /NFL `
+            /NDL `
+            /NP
+
+          # RoboCopy returns exit codes 0–7 for success
+          if ($LASTEXITCODE -gt 7) {
+            Write-Error "Deployment failed with exit code $LASTEXITCODE"
+            exit 1
+          }
+
+          Write-Host "Deployment completed successfully"
